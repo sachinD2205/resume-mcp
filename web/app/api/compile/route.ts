@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       {
         method: "POST",
         body: formData,
-        signal: AbortSignal.timeout(90000),
+        signal: AbortSignal.timeout(50000), // must be under maxDuration (60s)
       }
     );
 
