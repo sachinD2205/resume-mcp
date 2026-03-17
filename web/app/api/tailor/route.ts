@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
-const TAILORING_SYSTEM_PROMPT = `You are an expert resume writer for Sachin Durge, a Frontend Developer with 4+ years of experience.
-
-## CONFIRMED FACTS — never change these
+const CONFIRMED_FACTS = `## CONFIRMED FACTS — never change these
 - Name: Sachin Durge
 - Phone: +91 8275972494
 - Email: mrsachindurge@gmail.com
@@ -14,28 +12,20 @@ const TAILORING_SYSTEM_PROMPT = `You are an expert resume writer for Sachin Durg
 - Domo Inc: Jan 2025 – Present (React Query / TanStack Query used here ✓, Vite used here ✓)
 - Probity Software: Feb 2022 – Jan 2025 (Vite used here ✓, React Query NOT used here — do not add it)
 - Education: MCA from Yashwantrao Chavan College of Science, Karad — CGPA 9.1/10, May 2022
-- Award: Certificate of Appreciation, Domo Inc. (2025) — Data Modeling Beta launch — ALWAYS keep this
+- Award: Certificate of Appreciation, Domo Inc. (2025) — Data Modeling Beta launch — ALWAYS keep this`;
 
-## TAILORING RULES
+const TAILORING_RULES = `## TAILORING RULES
 1. Always target 90%+ ATS keyword match against the JD
 2. Single page always — trim less relevant bullets if needed to fit
 3. Each JD = fresh tailoring from the base resume — never carry over previous JD changes
 4. UPDATE Summary to directly mirror the JD's job title and top requirements
-5. REWRITE bullets using exact keywords and verb forms from the JD (e.g. if JD says "architect", use "architected")
+5. REWRITE bullets using exact keywords and verb forms from the JD
 6. REORDER bullets — most JD-relevant ones first
 7. Skills NOT worked on but explored/studied → add as "X (exposure)" in skills — never claim full proficiency
-8. Backend, DevOps, mobile experience user hasn't done → only mention as "exposure" if JD explicitly needs it
-9. Do NOT add fake companies, fake projects, or fabricate metrics
-10. QUANTIFY achievements wherever possible using existing numbers
-11. Keep LaTeX syntax valid and compilable — preserve all custom commands
-12. ATS style: accentblue section titles, \\textbullet bullets, \\setstretch{1.3} per item, \\vspace{6pt} between jobs
-13. Add Namaste React certification ONLY if JD explicitly asks for certifications — otherwise never add it
-14. Awards section: ALWAYS keep "Certificate of Appreciation, Domo Inc. (2025)"
-15. After tailoring, rate the resume vs JD out of 100 with 2-3 bullet explanations
-
-## SCORING CRITERIA
-Rate based on: skill overlap, experience relevance, keyword alignment, seniority match, gaps/exposures
-Target: 90+/100`;
+8. Do NOT add fake companies, fake projects, or fabricate metrics
+9. QUANTIFY achievements wherever possible using existing numbers
+10. Keep LaTeX syntax valid and compilable — preserve all custom commands
+11. Awards section: ALWAYS keep "Certificate of Appreciation, Domo Inc. (2025)"`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -54,57 +44,72 @@ export async function POST(req: NextRequest) {
     }
 
     const client = new Groq({ apiKey });
+    const context = `${CONFIRMED_FACTS}\n\n${TAILORING_RULES}`;
 
-    const response = await client.chat.completions.create({
+    // ── Call 1: Get tailored LaTeX as plain text (no JSON, avoids escape issues) ──
+    const latexResponse = await client.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       max_tokens: 8192,
       messages: [
-        { role: "system", content: TAILORING_SYSTEM_PROMPT },
+        {
+          role: "system",
+          content: `You are an expert resume writer for Sachin Durge, a Frontend Developer with 4+ years of experience.\n\n${context}\n\nReturn ONLY the complete tailored LaTeX document. No explanation, no markdown fences, no JSON. Just raw LaTeX starting with \\documentclass.`,
+        },
         {
           role: "user",
-          content: `Tailor the base resume for this job at ${companyName}.
-
-JOB DESCRIPTION:
-${jobDescription}
-
-BASE LATEX RESUME:
-${baseLatex}
-
-Return a JSON object with this exact structure:
-{
-  "tailoredLatex": "<complete valid LaTeX content>",
-  "atsScore": 92,
-  "scoreBreakdown": [
-    "Strong overlap: React.js, TypeScript, Redux match JD exactly",
-    "Added Bitbucket as confirmed tool (GIT/Bitbucket in JD)",
-    "Minor gap: No mobile app builder experience"
-  ],
-  "addedAsExposure": ["skill1 (exposure)", "skill2 (exposure)"],
-  "keyChanges": [
-    "Summary updated to mirror 'Senior Frontend Developer' title",
-    "Reordered Domo bullets to lead with component development"
-  ]
-}
-
-Respond with ONLY the JSON object. No markdown fences.`,
+          content: `Tailor this resume for the job at ${companyName}.\n\nJOB DESCRIPTION:\n${jobDescription}\n\nBASE LATEX RESUME:\n${baseLatex}`,
         },
       ],
     });
 
-    const text = response.choices[0]?.message?.content ?? "";
-    const cleaned = text.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    let tailoredLatex = latexResponse.choices[0]?.message?.content ?? "";
+    // Strip any accidental markdown fences
+    tailoredLatex = tailoredLatex.replace(/^```(?:latex|tex)?\n?/i, "").replace(/\n?```$/i, "").trim();
 
-    if (!jsonMatch) {
-      return NextResponse.json({ error: "Could not parse AI response" }, { status: 500 });
+    // ── Call 2: Get metadata (ATS score, changes) as clean JSON ──
+    const metaResponse = await client.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      max_tokens: 1024,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert ATS resume scorer. Rate based on: skill overlap, experience relevance, keyword alignment, seniority match. Target: 90+/100. Return ONLY valid JSON, no markdown.`,
+        },
+        {
+          role: "user",
+          content: `Score this tailored resume against the job description at ${companyName} and list key changes made.
+
+JOB DESCRIPTION:
+${jobDescription}
+
+TAILORED RESUME (LaTeX):
+${tailoredLatex}
+
+Return ONLY this JSON (no markdown fences, no extra text):
+{
+  "atsScore": 92,
+  "scoreBreakdown": ["reason1", "reason2", "reason3"],
+  "addedAsExposure": ["skill1 (exposure)"],
+  "keyChanges": ["change1", "change2", "change3"]
+}`,
+        },
+      ],
+    });
+
+    const metaText = metaResponse.choices[0]?.message?.content ?? "";
+    const metaCleaned = metaText.replace(/^```(?:json)?\n?/i, "").replace(/\n?```$/i, "").trim();
+    const metaMatch = metaCleaned.match(/\{[\s\S]*\}/);
+
+    let meta = { atsScore: 0, scoreBreakdown: [], addedAsExposure: [], keyChanges: [] };
+    if (metaMatch) {
+      try {
+        meta = JSON.parse(metaMatch[0]);
+      } catch {
+        // metadata parse failed — return zeros, LaTeX is still valid
+      }
     }
 
-    // Fix unescaped backslashes in LaTeX content (e.g. \documentclass → \\documentclass)
-    // Also handles \uXXXX-like sequences that aren't valid JSON unicode escapes
-    const fixedJson = jsonMatch[0].replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
-
-    const result = JSON.parse(fixedJson);
-    return NextResponse.json(result);
+    return NextResponse.json({ tailoredLatex, ...meta });
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Unknown error" }, { status: 500 });
   }
