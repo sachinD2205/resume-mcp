@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type TailorResult = {
   tailoredLatex: string;
@@ -21,7 +21,6 @@ export default function Home() {
   const [step, setStep] = useState<Step>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [showLatex, setShowLatex] = useState(false);
-  const pdfRef = useRef<HTMLAnchorElement>(null);
 
   // Load base resume on mount
   useEffect(() => {
@@ -52,8 +51,12 @@ export default function Home() {
       });
 
       if (!tailorRes.ok) {
-        const e = await tailorRes.json();
-        throw new Error(e.error ?? "Tailoring failed");
+        let errMsg = "Tailoring failed";
+        try {
+          const e = await tailorRes.json();
+          errMsg = e.error ?? errMsg;
+        } catch {}
+        throw new Error(errMsg);
       }
 
       const tailored: TailorResult = await tailorRes.json();
@@ -69,8 +72,12 @@ export default function Home() {
       });
 
       if (!compileRes.ok) {
-        const e = await compileRes.json();
-        throw new Error(e.error ?? "PDF compilation failed");
+        let errMsg = "PDF compilation failed";
+        try {
+          const e = await compileRes.json();
+          errMsg = e.error ?? errMsg;
+        } catch {}
+        throw new Error(errMsg);
       }
 
       const pdfBlob = await compileRes.blob();
@@ -304,7 +311,6 @@ export default function Home() {
           )}
         </section>
       </main>
-      <a ref={pdfRef} className="hidden" />
     </div>
   );
 }

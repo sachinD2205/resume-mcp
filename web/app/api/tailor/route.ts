@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
+export const maxDuration = 60; // Vercel: allow up to 60s for two Groq calls
+
 const CONFIRMED_FACTS = `## CONFIRMED FACTS — never change these
 - Name: Sachin Durge
 - Phone: +91 8275972494

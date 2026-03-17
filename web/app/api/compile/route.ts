@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60; // Vercel: allow up to 60s for LaTeX compile
+
 export async function POST(req: NextRequest) {
   try {
     const { latex, companyName } = await req.json();
