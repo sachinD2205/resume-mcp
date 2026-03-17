@@ -1,0 +1,12 @@
+node_modules/
+dist/
+output/
+.env
+.env.local
+*.pdf
+*.aux
+*.log
+*.out
+claude_desktop_config.json
+web/.next/
+web/node_modules/
