@@ -100,7 +100,8 @@ Respond with ONLY the JSON object. No markdown fences.`,
     }
 
     // Fix unescaped backslashes in LaTeX content (e.g. \documentclass → \\documentclass)
-    const fixedJson = jsonMatch[0].replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+    // Also handles \uXXXX-like sequences that aren't valid JSON unicode escapes
+    const fixedJson = jsonMatch[0].replace(/\\(?!["\\/bfnrt]|u[0-9a-fA-F]{4})/g, "\\\\");
 
     const result = JSON.parse(fixedJson);
     return NextResponse.json(result);
