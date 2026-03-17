@@ -211,8 +211,9 @@ export default function Home() {
                       strokeLinecap="round"
                     />
                   </svg>
-                  <span className="absolute inset-0 flex items-center justify-center text-lg font-bold">
-                    {result.atsScore}
+                  <span className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+                    <span className="text-lg font-bold">{result.atsScore}</span>
+                    <span className="text-[9px] text-gray-500">/100</span>
                   </span>
                 </div>
                 <div>
