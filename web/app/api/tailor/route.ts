@@ -65,8 +65,16 @@ export async function POST(req: NextRequest) {
     });
 
     let tailoredLatex = latexResponse.choices[0]?.message?.content ?? "";
-    // Strip any accidental markdown fences
-    tailoredLatex = tailoredLatex.replace(/^```(?:latex|tex)?\n?/i, "").replace(/\n?```$/i, "").trim();
+
+    // If model wrapped in markdown fences, extract content inside them
+    const fenceMatch = tailoredLatex.match(/```(?:latex|tex)?\n?([\s\S]*?)\n?```/i);
+    if (fenceMatch) tailoredLatex = fenceMatch[1];
+
+    // Always anchor to \documentclass — strips any preamble text the model added
+    const docStart = tailoredLatex.indexOf("\\documentclass");
+    if (docStart > 0) tailoredLatex = tailoredLatex.slice(docStart);
+
+    tailoredLatex = tailoredLatex.trim();
 
     // ── Call 2: Get metadata (ATS score, changes) as clean JSON ──
     const metaResponse = await client.chat.completions.create({
