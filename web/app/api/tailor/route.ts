@@ -99,7 +99,10 @@ Respond with ONLY the JSON object. No markdown fences.`,
       return NextResponse.json({ error: "Could not parse AI response" }, { status: 500 });
     }
 
-    const result = JSON.parse(jsonMatch[0]);
+    // Fix unescaped backslashes in LaTeX content (e.g. \documentclass → \\documentclass)
+    const fixedJson = jsonMatch[0].replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+
+    const result = JSON.parse(fixedJson);
     return NextResponse.json(result);
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Unknown error" }, { status: 500 });
